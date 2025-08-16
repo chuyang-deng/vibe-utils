@@ -61,8 +61,8 @@ result = vibecompare(5, 10)
 print(result)  # -1 (first number is smaller)
 
 # Compare two floats
-result = vibecompare(3.14, 2.71)
-print(result)  # 1 (first number is larger)
+result = vibecompare(5.11, 5.9)
+print(result)  # -1 ;)
 
 # Compare equal numbers
 result = vibecompare(7, 7)
