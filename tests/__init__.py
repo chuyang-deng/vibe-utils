@@ -1,3 +1,3 @@
 """
-Test package for vibecount
+Test package for vibeutils
 """
