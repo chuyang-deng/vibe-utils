@@ -6,6 +6,11 @@ import os
 import openai
 from typing import Union
 
+# OpenAI API configuration constants
+OPENAI_MODEL = "gpt-4o-mini"
+OPENAI_MAX_TOKENS = 10
+OPENAI_TEMPERATURE = 0
+
 
 def vibecount(text: str, target_letter: str, case_sensitive: bool = True) -> int:
     """
@@ -48,12 +53,12 @@ Text: "{text}"
     try:
         # Make API call to OpenAI
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=10,
-            temperature=0
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=OPENAI_TEMPERATURE
         )
         
         # Extract and return the count
@@ -107,12 +112,12 @@ Only return the number (-1, 0, or 1) as your response, nothing else.
     try:
         # Make API call to OpenAI
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=10,
-            temperature=0
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=OPENAI_TEMPERATURE
         )
         
         # Extract and return the comparison result
