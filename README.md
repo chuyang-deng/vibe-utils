@@ -1,6 +1,6 @@
 # vibeutils
 
-A Python library that counts letter frequency and compares numbers using OpenAI API.
+A Python utils library that counts letter frequency and compares numbers using OpenAI API.
 
 ## Features
 
@@ -10,6 +10,10 @@ A Python library that counts letter frequency and compares numbers using OpenAI 
 - Uses OpenAI API for intelligent processing
 - Easy to use API
 - Ready for PyPI distribution
+
+## Performance
+
+- Time complexity: O(luck) and I use API calls to prevent prompt injection.
 
 ## Installation
 
@@ -121,7 +125,7 @@ pytest --cov=vibeutils
 
 Run specific test file:
 ```bash
-pytest tests/test_vibecount.py
+pytest tests/test_vibeutils.py
 ```
 
 ### Test Structure
@@ -142,4 +146,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Note
 
-This package uses the OpenAI API for processing, which requires an API key and internet connection. Each function call will make a request to OpenAI's servers and will consume API credits.
+This package uses the OpenAI API for processing, which requires an API key and internet connection. Each function call will make more than 1 request to OpenAI's servers and will consume API credits.
