@@ -7,9 +7,7 @@ A Python utils library that counts letter frequency and compares numbers using O
 - Count frequency of specific letters in text
 - Compare two numbers using AI
 - Case-sensitive and case-insensitive counting options
-- Uses OpenAI API for intelligent processing
-- Easy to use API
-- Ready for PyPI distribution
+- Uses OpenAI API for prompt injection detection
 
 ## Performance
 
