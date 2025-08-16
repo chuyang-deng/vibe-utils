@@ -8,7 +8,7 @@ MANIFEST.in
 # Distribution
 dist/
 build/
-vibeutils.egg-info/
+*.egg-info/
 pyproject.toml
 distribution.sh
 
