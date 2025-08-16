@@ -4,7 +4,13 @@
 # Python
 __pycache__/
 MANIFEST.in
+
+# Distribution
+dist/
+build/
+vibeutils.egg-info/
 pyproject.toml
+distribution.sh
 
 # Environment variables
 .env
