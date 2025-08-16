@@ -1,0 +1,10 @@
+# Test
+.pytest_cache/
+
+# Python
+__pycache__/
+MANIFEST.in
+pyproject.toml
+
+# Environment variables
+.env

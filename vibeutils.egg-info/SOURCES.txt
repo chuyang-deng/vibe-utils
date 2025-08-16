@@ -1,0 +1,13 @@
+LICENSE
+MANIFEST.in
+README.md
+pyproject.toml
+setup.py
+tests/test_vibecount.py
+vibeutils/__init__.py
+vibeutils/core.py
+vibeutils.egg-info/PKG-INFO
+vibeutils.egg-info/SOURCES.txt
+vibeutils.egg-info/dependency_links.txt
+vibeutils.egg-info/requires.txt
+vibeutils.egg-info/top_level.txt

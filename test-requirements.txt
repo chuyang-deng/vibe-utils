@@ -1,0 +1,3 @@
+pytest>=7.0
+pytest-mock
+openai>=1.0.0

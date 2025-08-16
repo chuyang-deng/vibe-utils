@@ -1,0 +1,13 @@
+openai>=1.0.0
+
+[dev]
+pytest>=7.0
+pytest-cov
+pytest-mock
+black
+flake8
+mypy
+
+[test]
+pytest>=7.0
+pytest-mock
