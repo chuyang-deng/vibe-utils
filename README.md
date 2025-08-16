@@ -9,6 +9,12 @@ A Python utils library that counts letter frequency and compares numbers using O
 - Case-sensitive and case-insensitive counting options
 - Uses OpenAI API for prompt injection detection
 
+## Upcoming
+
+* `vibeeval()`
+* `vibelength()`
+* ...
+
 ## Performance
 
 - Time complexity: O(luck) and I use API calls to prevent prompt injection.
