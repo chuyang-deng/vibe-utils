@@ -157,6 +157,51 @@ Response to validate: "{response}" """
         raise Exception(f"Response validation check failed: {str(e)}")
 
 
+def _validate_vibeeval_response(response: str, client: openai.OpenAI) -> None:
+    """
+    Use OpenAI to validate that a response is appropriate for vibeeval function.
+    
+    Args:
+        response (str): The response to validate
+        client (openai.OpenAI): OpenAI client instance
+    
+    Raises:
+        Exception: If response validation fails
+    """
+    validation_prompt = f"""You are a response validator. Check if the following response is a valid answer for a mathematical expression evaluation task.
+
+The response should be:
+- A number (integer or decimal)
+- OR the exact text "ERROR" if the expression is invalid
+- Nothing else
+
+Respond with ONLY "VALID" if the response is appropriate, or "INVALID" if it's not.
+
+Response to validate: "{response}" """
+
+    try:
+        validation_response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "user", "content": validation_prompt}
+            ],
+            max_tokens=SECURITY_MAX_TOKENS,
+            temperature=SECURITY_TEMPERATURE
+        )
+        
+        result = validation_response.choices[0].message.content.strip().upper()
+        
+        if result == "INVALID":
+            raise Exception("Response validation failed - potentially compromised response detected")
+        elif result != "VALID":
+            raise Exception("Response validator returned unexpected result - response blocked as precaution")
+            
+    except Exception as e:
+        if "Response validation failed" in str(e) or "Response validator returned unexpected" in str(e):
+            raise
+        raise Exception(f"Response validation check failed: {str(e)}")
+
+
 def vibecount(text: str, target_letter: str, case_sensitive: bool = True) -> int:
     """
     Count the frequency of a specific letter in a string using OpenAI API.
@@ -313,6 +358,90 @@ Only return the number (-1, 0, or 1) as your response, nothing else.
         
     except ValueError as e:
         # Re-raise ValueError (includes our security blocks)
+        raise e
+    except Exception as e:
+        if "OpenAI API returned" in str(e) or "Response validation failed" in str(e):
+            raise e
+        raise Exception(f"OpenAI API call failed: {str(e)}")
+
+
+def vibeeval(expression: str) -> float:
+    """
+    Evaluate a mathematical expression using OpenAI API.
+    
+    Args:
+        expression (str): Mathematical expression containing +, -, *, /, () operators
+    
+    Returns:
+        float: The result of evaluating the expression
+    
+    Raises:
+        ValueError: If OpenAI API key is not set, expression is not a string,
+                   or input contains prompt injection, or expression is invalid
+        Exception: If OpenAI API call fails or response validation fails
+    """
+    # Validate inputs
+    if not isinstance(expression, str):
+        raise ValueError("expression must be a string")
+    
+    if not expression.strip():
+        raise ValueError("expression cannot be empty")
+    
+    # Check for OpenAI API key
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    
+    # Set up OpenAI client
+    client = openai.OpenAI(api_key=api_key)
+    
+    # Security check: Use OpenAI to detect prompt injection in user inputs
+    _check_prompt_injection(expression, client)
+    
+    prompt = f"""Evaluate the following mathematical expression and return the result as a number.
+
+The expression should only contain:
+- Numbers (integers and decimals)
+- Basic arithmetic operators: +, -, *, /
+- Parentheses: ()
+
+If the expression is valid, return only the numerical result.
+If the expression is invalid (contains unsupported operations, syntax errors, division by zero, etc.), return exactly "ERROR".
+
+Expression to evaluate: {expression}
+
+Remember: Only return the number or "ERROR", nothing else."""
+    
+    try:
+        # Make API call to OpenAI for the main task
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=OPENAI_TEMPERATURE
+        )
+        
+        # Extract the response
+        result = response.choices[0].message.content.strip()
+        
+        # Security check: Validate the response using OpenAI
+        _validate_vibeeval_response(result, client)
+        
+        # Check if the result is "ERROR"
+        if result.upper() == "ERROR":
+            raise ValueError(f"Invalid mathematical expression: {expression}")
+        
+        # Final validation and conversion
+        try:
+            evaluated_result = float(result)
+            return evaluated_result
+        except ValueError:
+            raise Exception(f"OpenAI API returned non-numeric response: {result}")
+        
+    except ValueError as e:
+        # Re-raise ValueError (includes our security blocks and invalid expression)
         raise e
     except Exception as e:
         if "OpenAI API returned" in str(e) or "Response validation failed" in str(e):

@@ -1,18 +1,19 @@
 # vibeutils
 
-A Python utils library that counts letter frequency and compares numbers using OpenAI API.
+A Python utils library that counts letter frequency, compares numbers, and evaluates mathematical expressions using OpenAI API.
 
 ## Features
 
 - Count frequency of specific letters in text
 - Compare two numbers using AI
+- Evaluate mathematical expressions safely
 - Case-sensitive and case-insensitive counting options
 - Uses OpenAI API for prompt injection detection
 
 ## Upcoming
 
-* `vibeeval()`
 * `vibelength()`
+* `viebtime`
 * ...
 
 ## Performance
@@ -73,6 +74,43 @@ result = vibecompare(7, 7)
 print(result)  # 0 (numbers are equal)
 ```
 
+### Mathematical Expression Evaluation - vibeeval()
+
+```python
+from vibeutils import vibeeval
+
+# Basic arithmetic operations
+result = vibeeval("2 + 3")
+print(result)  # 5.0
+
+result = vibeeval("3 * 4")
+print(result)  # 12.0
+
+# Complex expressions with parentheses
+result = vibeeval("(2 + 3) * 4")
+print(result)  # 20.0
+
+# Decimal results
+result = vibeeval("5 / 2")
+print(result)  # 2.5
+
+# Error handling for invalid expressions
+try:
+    result = vibeeval("2 +")  # Invalid syntax
+except ValueError as e:
+    print(f"Error: {e}")
+
+try:
+    result = vibeeval("2 ** 3")  # Unsupported operator
+except ValueError as e:
+    print(f"Error: {e}")
+
+try:
+    result = vibeeval("1 / 0")  # Division by zero
+except ValueError as e:
+    print(f"Error: {e}")
+```
+
 ### Parameters
 
 #### vibecount(text, target_letter, case_sensitive=True)
@@ -84,6 +122,9 @@ print(result)  # 0 (numbers are equal)
 - `num1` (Union[int, float]): The first number to compare
 - `num2` (Union[int, float]): The second number to compare
 
+#### vibeeval(expression)
+- `expression` (str): Mathematical expression containing numbers, operators (+, -, *, /), and parentheses
+
 ### Return Values
 
 - **vibecount()**: Returns an integer representing the count of the target letter
@@ -91,12 +132,13 @@ print(result)  # 0 (numbers are equal)
   - `-1` if the first number is smaller than the second
   - `0` if the numbers are equal
   - `1` if the first number is larger than the second
+- **vibeeval()**: Returns a float representing the result of the mathematical expression
 
 ### Error Handling
 
-Both functions raise:
-- `ValueError`: If OpenAI API key is not set or invalid arguments provided
-- `Exception`: If OpenAI API call fails
+All functions raise:
+- `ValueError`: If OpenAI API key is not set, invalid arguments provided, or invalid mathematical expression (vibeeval only)
+- `Exception`: If OpenAI API call fails or response validation fails
 
 ## Requirements
 
