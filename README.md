@@ -101,11 +101,6 @@ except ValueError as e:
     print(f"Error: {e}")
 
 try:
-    result = vibeeval("2 ** 3")  # Unsupported operator
-except ValueError as e:
-    print(f"Error: {e}")
-
-try:
     result = vibeeval("1 / 0")  # Division by zero
 except ValueError as e:
     print(f"Error: {e}")

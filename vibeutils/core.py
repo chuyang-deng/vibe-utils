@@ -370,7 +370,7 @@ def vibeeval(expression: str) -> float:
     Evaluate a mathematical expression using OpenAI API.
     
     Args:
-        expression (str): Mathematical expression containing +, -, *, /, () operators
+        expression (str): Mathematical expression containing +, -, *, /, **, () operators
     
     Returns:
         float: The result of evaluating the expression
@@ -402,7 +402,7 @@ def vibeeval(expression: str) -> float:
 
 The expression should only contain:
 - Numbers (integers and decimals)
-- Basic arithmetic operators: +, -, *, /
+- Basic arithmetic operators: +, -, *, /, **
 - Parentheses: ()
 
 If the expression is valid, return only the numerical result.
