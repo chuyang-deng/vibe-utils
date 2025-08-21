@@ -26,6 +26,7 @@ result = vibeeval("(2 + 3) * 4")            # Evaluate expressions
 
 ## Upcoming
 
+* Model choosing support.
 * `vibelength()`
 * `viebtime`
 * ...
