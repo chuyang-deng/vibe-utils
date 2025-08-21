@@ -4,25 +4,119 @@ Core functionality for vibeutils package
 
 import os
 import openai
-from typing import Union
+from typing import Union, Literal, Optional
+from abc import ABC, abstractmethod
 
-# OpenAI API configuration constants
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+
+# API configuration constants
 OPENAI_MODEL = "gpt-4o-mini"
-OPENAI_MAX_TOKENS = 10
-OPENAI_TEMPERATURE = 0
+ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+MAX_TOKENS = 10
+TEMPERATURE = 0
 
 # Security validation constants
 SECURITY_MAX_TOKENS = 50
 SECURITY_TEMPERATURE = 0
 
+# Provider type
+Provider = Literal["openai", "anthropic"]
 
-def _check_prompt_injection(user_input: str, client: openai.OpenAI) -> None:
+
+class AIProvider(ABC):
+    """Abstract base class for AI providers"""
+    
+    @abstractmethod
+    def create_completion(self, messages: list, max_tokens: int = MAX_TOKENS, temperature: float = TEMPERATURE) -> str:
+        """Create a completion using the provider's API"""
+        pass
+
+
+class OpenAIProvider(AIProvider):
+    """OpenAI API provider implementation"""
+    
+    def __init__(self, api_key: str):
+        self.client = openai.OpenAI(api_key=api_key)
+    
+    def create_completion(self, messages: list, max_tokens: int = MAX_TOKENS, temperature: float = TEMPERATURE) -> str:
+        """Create a completion using OpenAI API"""
+        response = self.client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        return response.choices[0].message.content.strip()
+
+
+class AnthropicProvider(AIProvider):
+    """Anthropic API provider implementation"""
+    
+    def __init__(self, api_key: str):
+        if not ANTHROPIC_AVAILABLE:
+            raise ImportError("anthropic package is not installed. Install it with: pip install anthropic")
+        self.client = anthropic.Anthropic(api_key=api_key)
+    
+    def create_completion(self, messages: list, max_tokens: int = MAX_TOKENS, temperature: float = TEMPERATURE) -> str:
+        """Create a completion using Anthropic API"""
+        response = self.client.messages.create(
+            model=ANTHROPIC_MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        return response.content[0].text.strip()
+
+
+def _get_provider(provider: Optional[Provider] = None) -> AIProvider:
     """
-    Use OpenAI to detect if user input contains prompt injection attempts.
+    Get an AI provider instance based on the specified provider type.
+    
+    Args:
+        provider: The AI provider to use ("openai" or "anthropic"). 
+                 If None, uses VIBEUTILS_PROVIDER environment variable, 
+                 defaulting to "openai" if not set.
+    
+    Returns:
+        AIProvider instance
+    
+    Raises:
+        ValueError: If API key is not set or provider is invalid
+        ImportError: If required package is not installed
+    """
+    # If provider is not specified, check environment variable
+    if provider is None:
+        provider = os.getenv("VIBEUTILS_PROVIDER", "openai")
+    
+    # Validate provider type
+    if provider not in ["openai", "anthropic"]:
+        raise ValueError(f"Unsupported provider: {provider}. Use 'openai' or 'anthropic'.")
+    
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        return OpenAIProvider(api_key)
+    elif provider == "anthropic":
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
+        return AnthropicProvider(api_key)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}. Use 'openai' or 'anthropic'.")
+
+
+def _check_prompt_injection(user_input: str, provider_instance: AIProvider) -> None:
+    """
+    Use AI provider to detect if user input contains prompt injection attempts.
     
     Args:
         user_input (str): The user input to analyze
-        client (openai.OpenAI): OpenAI client instance
+        provider_instance (AIProvider): AI provider instance
     
     Raises:
         ValueError: If prompt injection is detected
@@ -43,16 +137,11 @@ Respond with ONLY "SAFE" if the input is safe, or "INJECTION" if it contains pro
 User input to analyze: "{user_input}" """
 
     try:
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": security_prompt}
-            ],
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": security_prompt}],
             max_tokens=SECURITY_MAX_TOKENS,
             temperature=SECURITY_TEMPERATURE
-        )
-        
-        result = response.choices[0].message.content.strip().upper()
+        ).upper()
         
         if result == "INJECTION":
             raise ValueError("Input contains potential prompt injection and has been blocked for security")
@@ -69,13 +158,13 @@ User input to analyze: "{user_input}" """
         raise Exception(f"Security validation failed: {str(e)}")
 
 
-def _validate_vibecount_response(response: str, client: openai.OpenAI) -> None:
+def _validate_vibecount_response(response: str, provider_instance: AIProvider) -> None:
     """
-    Use OpenAI to validate that a response is appropriate for vibecount function.
+    Use AI provider to validate that a response is appropriate for vibecount function.
     
     Args:
         response (str): The response to validate
-        client (openai.OpenAI): OpenAI client instance
+        provider_instance (AIProvider): AI provider instance
     
     Raises:
         Exception: If response validation fails
@@ -91,16 +180,11 @@ Respond with ONLY "VALID" if the response is appropriate, or "INVALID" if it's n
 Response to validate: "{response}" """
 
     try:
-        validation_response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": validation_prompt}
-            ],
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": validation_prompt}],
             max_tokens=SECURITY_MAX_TOKENS,
             temperature=SECURITY_TEMPERATURE
-        )
-        
-        result = validation_response.choices[0].message.content.strip().upper()
+        ).upper()
         
         if result == "INVALID":
             raise Exception("Response validation failed - potentially compromised response detected")
@@ -113,13 +197,13 @@ Response to validate: "{response}" """
         raise Exception(f"Response validation check failed: {str(e)}")
 
 
-def _validate_vibecompare_response(response: str, client: openai.OpenAI) -> None:
+def _validate_vibecompare_response(response: str, provider_instance: AIProvider) -> None:
     """
-    Use OpenAI to validate that a response is appropriate for vibecompare function.
+    Use AI provider to validate that a response is appropriate for vibecompare function.
     
     Args:
         response (str): The response to validate
-        client (openai.OpenAI): OpenAI client instance
+        provider_instance (AIProvider): AI provider instance
     
     Raises:
         Exception: If response validation fails
@@ -135,16 +219,11 @@ Respond with ONLY "VALID" if the response is appropriate, or "INVALID" if it's n
 Response to validate: "{response}" """
 
     try:
-        validation_response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": validation_prompt}
-            ],
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": validation_prompt}],
             max_tokens=SECURITY_MAX_TOKENS,
             temperature=SECURITY_TEMPERATURE
-        )
-        
-        result = validation_response.choices[0].message.content.strip().upper()
+        ).upper()
         
         if result == "INVALID":
             raise Exception("Response validation failed - potentially compromised response detected")
@@ -157,13 +236,13 @@ Response to validate: "{response}" """
         raise Exception(f"Response validation check failed: {str(e)}")
 
 
-def _validate_vibeeval_response(response: str, client: openai.OpenAI) -> None:
+def _validate_vibeeval_response(response: str, provider_instance: AIProvider) -> None:
     """
-    Use OpenAI to validate that a response is appropriate for vibeeval function.
+    Use AI provider to validate that a response is appropriate for vibeeval function.
     
     Args:
         response (str): The response to validate
-        client (openai.OpenAI): OpenAI client instance
+        provider_instance (AIProvider): AI provider instance
     
     Raises:
         Exception: If response validation fails
@@ -180,16 +259,11 @@ Respond with ONLY "VALID" if the response is appropriate, or "INVALID" if it's n
 Response to validate: "{response}" """
 
     try:
-        validation_response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": validation_prompt}
-            ],
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": validation_prompt}],
             max_tokens=SECURITY_MAX_TOKENS,
             temperature=SECURITY_TEMPERATURE
-        )
-        
-        result = validation_response.choices[0].message.content.strip().upper()
+        ).upper()
         
         if result == "INVALID":
             raise Exception("Response validation failed - potentially compromised response detected")
@@ -202,22 +276,25 @@ Response to validate: "{response}" """
         raise Exception(f"Response validation check failed: {str(e)}")
 
 
-def vibecount(text: str, target_letter: str, case_sensitive: bool = True) -> int:
+def vibecount(text: str, target_letter: str, case_sensitive: bool = True, provider: Optional[Provider] = None) -> int:
     """
-    Count the frequency of a specific letter in a string using OpenAI API.
+    Count the frequency of a specific letter in a string using AI API.
     
     Args:
         text (str): The input string to analyze
         target_letter (str): The letter to count (should be a single character)
         case_sensitive (bool): Whether to perform case-sensitive counting (default: True)
+        provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
+                                      If None, uses VIBEUTILS_PROVIDER environment variable, 
+                                      defaulting to "openai" if not set.
     
     Returns:
         int: The count of the target letter in the text
     
     Raises:
-        ValueError: If OpenAI API key is not set, target_letter is not a single character,
+        ValueError: If API key is not set, target_letter is not a single character,
                    or input contains prompt injection
-        Exception: If OpenAI API call fails or response validation fails
+        Exception: If AI API call fails or response validation fails
     """
     # Validate inputs
     if not isinstance(target_letter, str) or len(target_letter) != 1:
@@ -226,17 +303,12 @@ def vibecount(text: str, target_letter: str, case_sensitive: bool = True) -> int
     if not isinstance(text, str):
         raise ValueError("text must be a string")
     
-    # Check for OpenAI API key
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    # Get AI provider instance
+    provider_instance = _get_provider(provider)
     
-    # Set up OpenAI client
-    client = openai.OpenAI(api_key=api_key)
-    
-    # Security check: Use OpenAI to detect prompt injection in user inputs
-    _check_prompt_injection(text, client)
-    _check_prompt_injection(target_letter, client)
+    # Security check: Use AI to detect prompt injection in user inputs
+    _check_prompt_injection(text, provider_instance)
+    _check_prompt_injection(target_letter, provider_instance)
     
     # Prepare the prompt based on case sensitivity
     case_instruction = "case-sensitive" if case_sensitive else "case-insensitive"
@@ -249,74 +321,66 @@ Text: "{text}"
 """
     
     try:
-        # Make API call to OpenAI for the main task
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=OPENAI_MAX_TOKENS,
-            temperature=OPENAI_TEMPERATURE
+        # Make API call for the main task
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE
         )
         
-        # Extract the response
-        result = response.choices[0].message.content.strip()
-        
-        # Security check: Validate the response using OpenAI
-        _validate_vibecount_response(result, client)
+        # Security check: Validate the response using AI
+        _validate_vibecount_response(result, provider_instance)
         
         # Final validation and conversion
         try:
             count = int(result)
             if count < 0:
-                raise Exception("OpenAI API returned invalid negative count")
+                raise Exception("AI API returned invalid negative count")
             return count
         except ValueError:
-            raise Exception(f"OpenAI API returned non-numeric response: {result}")
+            raise Exception(f"AI API returned non-numeric response: {result}")
         
     except ValueError as e:
         # Re-raise ValueError (includes our security blocks)
         raise e
     except Exception as e:
-        if "OpenAI API returned" in str(e) or "Response validation failed" in str(e):
+        if "AI API returned" in str(e) or "Response validation failed" in str(e):
             raise e
-        raise Exception(f"OpenAI API call failed: {str(e)}")
+        raise Exception(f"AI API call failed: {str(e)}")
 
 
-def vibecompare(num1: Union[int, float], num2: Union[int, float]) -> int:
+def vibecompare(num1: Union[int, float], num2: Union[int, float], provider: Optional[Provider] = None) -> int:
     """
-    Compare two numbers using OpenAI API.
+    Compare two numbers using AI API.
     
     Args:
         num1 (Union[int, float]): The first number to compare
         num2 (Union[int, float]): The second number to compare
+        provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
+                                      If None, uses VIBEUTILS_PROVIDER environment variable, 
+                                      defaulting to "openai" if not set.
     
     Returns:
         int: -1 if num1 < num2, 0 if num1 == num2, 1 if num1 > num2
     
     Raises:
-        ValueError: If OpenAI API key is not set, inputs are not numbers,
+        ValueError: If API key is not set, inputs are not numbers,
                    or input contains prompt injection
-        Exception: If OpenAI API call fails or response validation fails
+        Exception: If AI API call fails or response validation fails
     """
     # Validate inputs
     if not isinstance(num1, (int, float)) or not isinstance(num2, (int, float)):
         raise ValueError("Both arguments must be numbers (int or float)")
     
-    # Check for OpenAI API key
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    # Get AI provider instance
+    provider_instance = _get_provider(provider)
     
-    # Set up OpenAI client
-    client = openai.OpenAI(api_key=api_key)
-    
-    # Security check: Use OpenAI to detect prompt injection in number strings
+    # Security check: Use AI to detect prompt injection in number strings
     # Convert numbers to strings for injection check
     num1_str = str(num1)
     num2_str = str(num2)
-    _check_prompt_injection(num1_str, client)
-    _check_prompt_injection(num2_str, client)
+    _check_prompt_injection(num1_str, provider_instance)
+    _check_prompt_injection(num2_str, provider_instance)
     
     prompt = f"""Compare the two numbers {num1} and {num2}.
 Return:
@@ -328,31 +392,25 @@ Only return the number (-1, 0, or 1) as your response, nothing else.
 """
     
     try:
-        # Make API call to OpenAI for the main task
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=OPENAI_MAX_TOKENS,
-            temperature=OPENAI_TEMPERATURE
+        # Make API call for the main task
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE
         )
         
-        # Extract the response
-        result = response.choices[0].message.content.strip()
-        
-        # Security check: Validate the response using OpenAI
-        _validate_vibecompare_response(result, client)
+        # Security check: Validate the response using AI
+        _validate_vibecompare_response(result, provider_instance)
         
         # Final validation and conversion
         try:
             comparison_result = int(result)
         except ValueError:
-            raise Exception(f"OpenAI API returned non-numeric response: {result}")
+            raise Exception(f"AI API returned non-numeric response: {result}")
         
         # Validate the result is one of the expected values
         if comparison_result not in [-1, 0, 1]:
-            raise Exception(f"OpenAI API returned invalid comparison result: {result}")
+            raise Exception(f"AI API returned invalid comparison result: {result}")
         
         return comparison_result
         
@@ -360,25 +418,28 @@ Only return the number (-1, 0, or 1) as your response, nothing else.
         # Re-raise ValueError (includes our security blocks)
         raise e
     except Exception as e:
-        if "OpenAI API returned" in str(e) or "Response validation failed" in str(e):
+        if "AI API returned" in str(e) or "Response validation failed" in str(e):
             raise e
-        raise Exception(f"OpenAI API call failed: {str(e)}")
+        raise Exception(f"AI API call failed: {str(e)}")
 
 
-def vibeeval(expression: str) -> float:
+def vibeeval(expression: str, provider: Optional[Provider] = None) -> float:
     """
-    Evaluate a mathematical expression using OpenAI API.
+    Evaluate a mathematical expression using AI API.
     
     Args:
         expression (str): Mathematical expression containing +, -, *, /, **, () operators
+        provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
+                                      If None, uses VIBEUTILS_PROVIDER environment variable, 
+                                      defaulting to "openai" if not set.
     
     Returns:
         float: The result of evaluating the expression
     
     Raises:
-        ValueError: If OpenAI API key is not set, expression is not a string,
+        ValueError: If API key is not set, expression is not a string,
                    or input contains prompt injection, or expression is invalid
-        Exception: If OpenAI API call fails or response validation fails
+        Exception: If AI API call fails or response validation fails
     """
     # Validate inputs
     if not isinstance(expression, str):
@@ -387,16 +448,11 @@ def vibeeval(expression: str) -> float:
     if not expression.strip():
         raise ValueError("expression cannot be empty")
     
-    # Check for OpenAI API key
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    # Get AI provider instance
+    provider_instance = _get_provider(provider)
     
-    # Set up OpenAI client
-    client = openai.OpenAI(api_key=api_key)
-    
-    # Security check: Use OpenAI to detect prompt injection in user inputs
-    _check_prompt_injection(expression, client)
+    # Security check: Use AI to detect prompt injection in user inputs
+    _check_prompt_injection(expression, provider_instance)
     
     prompt = f"""Evaluate the following mathematical expression and return the result as a number.
 
@@ -413,21 +469,15 @@ Expression to evaluate: {expression}
 Remember: Only return the number or "ERROR", nothing else."""
     
     try:
-        # Make API call to OpenAI for the main task
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=OPENAI_MAX_TOKENS,
-            temperature=OPENAI_TEMPERATURE
+        # Make API call for the main task
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE
         )
         
-        # Extract the response
-        result = response.choices[0].message.content.strip()
-        
-        # Security check: Validate the response using OpenAI
-        _validate_vibeeval_response(result, client)
+        # Security check: Validate the response using AI
+        _validate_vibeeval_response(result, provider_instance)
         
         # Check if the result is "ERROR"
         if result.upper() == "ERROR":
@@ -438,12 +488,12 @@ Remember: Only return the number or "ERROR", nothing else."""
             evaluated_result = float(result)
             return evaluated_result
         except ValueError:
-            raise Exception(f"OpenAI API returned non-numeric response: {result}")
+            raise Exception(f"AI API returned non-numeric response: {result}")
         
     except ValueError as e:
         # Re-raise ValueError (includes our security blocks and invalid expression)
         raise e
     except Exception as e:
-        if "OpenAI API returned" in str(e) or "Response validation failed" in str(e):
+        if "AI API returned" in str(e) or "Response validation failed" in str(e):
             raise e
-        raise Exception(f"OpenAI API call failed: {str(e)}")
+        raise Exception(f"AI API call failed: {str(e)}")

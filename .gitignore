@@ -1,5 +1,6 @@
 # Test
 .pytest_cache/
+anthrpic_test/
 
 # Python
 __pycache__/
