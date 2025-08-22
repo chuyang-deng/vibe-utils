@@ -39,32 +39,67 @@ class AIProvider(ABC):
 class OpenAIProvider(AIProvider):
     """OpenAI API provider implementation"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = OPENAI_MODEL):
         self.client = openai.OpenAI(api_key=api_key)
+        self.model = model
+    
+    def _get_api_params(self, max_tokens: int, temperature: float) -> dict:
+        """Get API parameters based on model capabilities"""
+        # Models that use max_completion_tokens instead of max_tokens
+        newer_models = [
+            "gpt-4o", "gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20",
+            "gpt-4o-mini", "gpt-4o-mini-2024-07-18",
+            "chatgpt-4o-latest", "gpt-4o-realtime-preview", "gpt-4o-realtime-preview-2024-10-01",
+            "gpt-4o-audio-preview", "gpt-4o-audio-preview-2024-10-01",
+            "o1-preview", "o1-preview-2024-09-12",
+            "o1-mini", "o1-mini-2024-09-12"
+        ]
+        
+        # o1 models have special restrictions - no temperature parameter at all
+        o1_models = ["o1-preview", "o1-mini"]
+        is_o1_model = any(self.model.startswith(model) for model in o1_models)
+        
+        # Check if the model uses the new parameter format
+        uses_new_format = any(self.model.startswith(model) for model in newer_models)
+        
+        base_params = {
+            "model": self.model
+        }
+        
+        # o1 models don't support temperature parameter
+        if not is_o1_model:
+            base_params["temperature"] = temperature
+        
+        # Set the appropriate token parameter
+        if uses_new_format:
+            base_params["max_completion_tokens"] = max_tokens
+        else:
+            base_params["max_tokens"] = max_tokens
+            
+        return base_params
     
     def create_completion(self, messages: list, max_tokens: int = MAX_TOKENS, temperature: float = TEMPERATURE) -> str:
         """Create a completion using OpenAI API"""
-        response = self.client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature
-        )
+        api_params = self._get_api_params(max_tokens, temperature)
+        api_params["messages"] = messages
+        
+        response = self.client.chat.completions.create(**api_params)
         return response.choices[0].message.content.strip()
 
 
 class AnthropicProvider(AIProvider):
     """Anthropic API provider implementation"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model: str = ANTHROPIC_MODEL):
         if not ANTHROPIC_AVAILABLE:
             raise ImportError("anthropic package is not installed. Install it with: pip install anthropic")
         self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model
     
     def create_completion(self, messages: list, max_tokens: int = MAX_TOKENS, temperature: float = TEMPERATURE) -> str:
         """Create a completion using Anthropic API"""
         response = self.client.messages.create(
-            model=ANTHROPIC_MODEL,
+            model=self.model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature
@@ -72,7 +107,7 @@ class AnthropicProvider(AIProvider):
         return response.content[0].text.strip()
 
 
-def _get_provider(provider: Optional[Provider] = None) -> AIProvider:
+def _get_provider(provider: Optional[Provider] = None, model: Optional[str] = None) -> AIProvider:
     """
     Get an AI provider instance based on the specified provider type.
     
@@ -80,6 +115,9 @@ def _get_provider(provider: Optional[Provider] = None) -> AIProvider:
         provider: The AI provider to use ("openai" or "anthropic"). 
                  If None, uses VIBEUTILS_PROVIDER environment variable, 
                  defaulting to "openai" if not set.
+        model: The model to use for the provider. If None, uses environment variables
+               VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, defaulting to
+               built-in constants if not set.
     
     Returns:
         AIProvider instance
@@ -100,12 +138,22 @@ def _get_provider(provider: Optional[Provider] = None) -> AIProvider:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-        return OpenAIProvider(api_key)
+        
+        # Get model from parameter, environment variable, or default
+        if model is None:
+            model = os.getenv("VIBEUTILS_OPENAI_MODEL", OPENAI_MODEL)
+        
+        return OpenAIProvider(api_key, model)
     elif provider == "anthropic":
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
-        return AnthropicProvider(api_key)
+        
+        # Get model from parameter, environment variable, or default
+        if model is None:
+            model = os.getenv("VIBEUTILS_ANTHROPIC_MODEL", ANTHROPIC_MODEL)
+        
+        return AnthropicProvider(api_key, model)
     else:
         raise ValueError(f"Unsupported provider: {provider}. Use 'openai' or 'anthropic'.")
 
@@ -276,7 +324,7 @@ Response to validate: "{response}" """
         raise Exception(f"Response validation check failed: {str(e)}")
 
 
-def vibecount(text: str, target_letter: str, case_sensitive: bool = True, provider: Optional[Provider] = None) -> int:
+def vibecount(text: str, target_letter: str, case_sensitive: bool = True, provider: Optional[Provider] = None, model: Optional[str] = None) -> int:
     """
     Count the frequency of a specific letter in a string using AI API.
     
@@ -287,6 +335,9 @@ def vibecount(text: str, target_letter: str, case_sensitive: bool = True, provid
         provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
                                       If None, uses VIBEUTILS_PROVIDER environment variable, 
                                       defaulting to "openai" if not set.
+        model (Optional[str]): The model to use for the provider. If None, uses environment 
+                              variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, 
+                              defaulting to built-in constants if not set.
     
     Returns:
         int: The count of the target letter in the text
@@ -304,7 +355,7 @@ def vibecount(text: str, target_letter: str, case_sensitive: bool = True, provid
         raise ValueError("text must be a string")
     
     # Get AI provider instance
-    provider_instance = _get_provider(provider)
+    provider_instance = _get_provider(provider, model)
     
     # Security check: Use AI to detect prompt injection in user inputs
     _check_prompt_injection(text, provider_instance)
@@ -349,7 +400,7 @@ Text: "{text}"
         raise Exception(f"AI API call failed: {str(e)}")
 
 
-def vibecompare(num1: Union[int, float], num2: Union[int, float], provider: Optional[Provider] = None) -> int:
+def vibecompare(num1: Union[int, float], num2: Union[int, float], provider: Optional[Provider] = None, model: Optional[str] = None) -> int:
     """
     Compare two numbers using AI API.
     
@@ -359,6 +410,9 @@ def vibecompare(num1: Union[int, float], num2: Union[int, float], provider: Opti
         provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
                                       If None, uses VIBEUTILS_PROVIDER environment variable, 
                                       defaulting to "openai" if not set.
+        model (Optional[str]): The model to use for the provider. If None, uses environment 
+                              variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, 
+                              defaulting to built-in constants if not set.
     
     Returns:
         int: -1 if num1 < num2, 0 if num1 == num2, 1 if num1 > num2
@@ -373,7 +427,7 @@ def vibecompare(num1: Union[int, float], num2: Union[int, float], provider: Opti
         raise ValueError("Both arguments must be numbers (int or float)")
     
     # Get AI provider instance
-    provider_instance = _get_provider(provider)
+    provider_instance = _get_provider(provider, model)
     
     # Security check: Use AI to detect prompt injection in number strings
     # Convert numbers to strings for injection check
@@ -423,7 +477,7 @@ Only return the number (-1, 0, or 1) as your response, nothing else.
         raise Exception(f"AI API call failed: {str(e)}")
 
 
-def vibeeval(expression: str, provider: Optional[Provider] = None) -> float:
+def vibeeval(expression: str, provider: Optional[Provider] = None, model: Optional[str] = None) -> float:
     """
     Evaluate a mathematical expression using AI API.
     
@@ -432,6 +486,9 @@ def vibeeval(expression: str, provider: Optional[Provider] = None) -> float:
         provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
                                       If None, uses VIBEUTILS_PROVIDER environment variable, 
                                       defaulting to "openai" if not set.
+        model (Optional[str]): The model to use for the provider. If None, uses environment 
+                              variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, 
+                              defaulting to built-in constants if not set.
     
     Returns:
         float: The result of evaluating the expression
@@ -449,7 +506,7 @@ def vibeeval(expression: str, provider: Optional[Provider] = None) -> float:
         raise ValueError("expression cannot be empty")
     
     # Get AI provider instance
-    provider_instance = _get_provider(provider)
+    provider_instance = _get_provider(provider, model)
     
     # Security check: Use AI to detect prompt injection in user inputs
     _check_prompt_injection(expression, provider_instance)

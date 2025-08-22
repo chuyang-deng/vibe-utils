@@ -101,7 +101,7 @@ class TestVibecountProviders:
         
         assert result == 3
         assert mock_instance.create_completion.call_count == 4
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.AnthropicProvider')
     def test_anthropic_successful_case_sensitive_count(self, mock_anthropic_provider):
@@ -116,7 +116,7 @@ class TestVibecountProviders:
         
         assert result == 3
         assert mock_instance.create_completion.call_count == 4
-        mock_anthropic_provider.assert_called_with("test-anthropic-key")
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", "claude-sonnet-4-20250514")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_openai_case_insensitive_count(self, mock_openai_provider):
@@ -405,7 +405,7 @@ class TestBackwardCompatibility:
         result = vibecount("test", "t")
         
         assert result == 2
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_vibecompare_default_behavior(self, mock_openai_provider):
@@ -419,7 +419,7 @@ class TestBackwardCompatibility:
         result = vibecompare(5, 10)
         
         assert result == -1
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_vibeeval_default_behavior(self, mock_openai_provider):
@@ -433,7 +433,7 @@ class TestBackwardCompatibility:
         result = vibeeval("2 + 3")
         
         assert result == 5.0
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
 
 
 class TestAnthropicImportHandling:

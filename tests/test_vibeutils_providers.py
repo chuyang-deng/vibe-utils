@@ -101,7 +101,7 @@ class TestVibecountProviders:
         
         assert result == 3
         assert mock_instance.create_completion.call_count == 4
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.AnthropicProvider')
     def test_anthropic_successful_case_sensitive_count(self, mock_anthropic_provider):
@@ -116,7 +116,7 @@ class TestVibecountProviders:
         
         assert result == 3
         assert mock_instance.create_completion.call_count == 4
-        mock_anthropic_provider.assert_called_with("test-anthropic-key")
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", "claude-sonnet-4-20250514")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_openai_case_insensitive_count(self, mock_openai_provider):
@@ -405,7 +405,7 @@ class TestBackwardCompatibility:
         result = vibecount("test", "t")
         
         assert result == 2
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_vibecompare_default_behavior(self, mock_openai_provider):
@@ -419,7 +419,7 @@ class TestBackwardCompatibility:
         result = vibecompare(5, 10)
         
         assert result == -1
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
     
     @patch('vibeutils.core.OpenAIProvider')
     def test_vibeeval_default_behavior(self, mock_openai_provider):
@@ -433,7 +433,7 @@ class TestBackwardCompatibility:
         result = vibeeval("2 + 3")
         
         assert result == 5.0
-        mock_openai_provider.assert_called_with("test-openai-key")
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
 
 
 class TestAnthropicImportHandling:
@@ -453,3 +453,247 @@ class TestAnthropicImportHandling:
         """Test that proper error is raised when anthropic package is not available"""
         with pytest.raises(ImportError, match="anthropic package is not installed"):
             vibecount("test", "t", provider="anthropic")
+
+
+class TestModelParameterFunctionality:
+    """Test cases for model parameter functionality"""
+    
+    def setup_method(self):
+        """Set up test environment"""
+        os.environ["OPENAI_API_KEY"] = "test-openai-key"
+        os.environ["ANTHROPIC_API_KEY"] = "test-anthropic-key"
+        # Clean up any existing model environment variables
+        for key in ["VIBEUTILS_OPENAI_MODEL", "VIBEUTILS_ANTHROPIC_MODEL"]:
+            if key in os.environ:
+                del os.environ[key]
+    
+    def teardown_method(self):
+        """Clean up test environment"""
+        for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "VIBEUTILS_OPENAI_MODEL", "VIBEUTILS_ANTHROPIC_MODEL"]:
+            if key in os.environ:
+                del os.environ[key]
+    
+    @patch('vibeutils.core.OpenAIProvider')
+    def test_openai_custom_model_parameter(self, mock_openai_provider):
+        """Test that custom model parameter is passed to OpenAI provider"""
+        mock_instance = MagicMock()
+        mock_openai_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        custom_model = "gpt-4"
+        result = vibecount("test", "t", provider="openai", model=custom_model)
+        
+        assert result == 3
+        mock_openai_provider.assert_called_with("test-openai-key", custom_model)
+    
+    @patch('vibeutils.core.AnthropicProvider')
+    def test_anthropic_custom_model_parameter(self, mock_anthropic_provider):
+        """Test that custom model parameter is passed to Anthropic provider"""
+        mock_instance = MagicMock()
+        mock_anthropic_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        custom_model = "claude-3-opus-20240229"
+        result = vibecount("test", "t", provider="anthropic", model=custom_model)
+        
+        assert result == 3
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", custom_model)
+    
+    @patch('vibeutils.core.OpenAIProvider')
+    def test_vibecompare_custom_model_parameter(self, mock_openai_provider):
+        """Test vibecompare with custom model parameter"""
+        mock_instance = MagicMock()
+        mock_openai_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "-1", "VALID"]
+        
+        custom_model = "gpt-4-turbo"
+        result = vibecompare(5, 10, provider="openai", model=custom_model)
+        
+        assert result == -1
+        mock_openai_provider.assert_called_with("test-openai-key", custom_model)
+    
+    @patch('vibeutils.core.AnthropicProvider')
+    def test_vibeeval_custom_model_parameter(self, mock_anthropic_provider):
+        """Test vibeeval with custom model parameter"""
+        mock_instance = MagicMock()
+        mock_anthropic_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "5", "VALID"]
+        
+        custom_model = "claude-3-haiku-20240307"
+        result = vibeeval("2 + 3", provider="anthropic", model=custom_model)
+        
+        assert result == 5.0
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", custom_model)
+
+
+class TestModelEnvironmentVariables:
+    """Test cases for model environment variable functionality"""
+    
+    def setup_method(self):
+        """Set up test environment"""
+        os.environ["OPENAI_API_KEY"] = "test-openai-key"
+        os.environ["ANTHROPIC_API_KEY"] = "test-anthropic-key"
+        # Clean up any existing model environment variables
+        for key in ["VIBEUTILS_OPENAI_MODEL", "VIBEUTILS_ANTHROPIC_MODEL"]:
+            if key in os.environ:
+                del os.environ[key]
+    
+    def teardown_method(self):
+        """Clean up test environment"""
+        for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "VIBEUTILS_OPENAI_MODEL", "VIBEUTILS_ANTHROPIC_MODEL"]:
+            if key in os.environ:
+                del os.environ[key]
+    
+    @patch('vibeutils.core.OpenAIProvider')
+    def test_openai_model_from_environment_variable(self, mock_openai_provider):
+        """Test that OpenAI model is read from environment variable"""
+        mock_instance = MagicMock()
+        mock_openai_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        custom_model = "gpt-4"
+        os.environ["VIBEUTILS_OPENAI_MODEL"] = custom_model
+        
+        result = vibecount("test", "t", provider="openai")  # No model parameter
+        
+        assert result == 3
+        mock_openai_provider.assert_called_with("test-openai-key", custom_model)
+    
+    @patch('vibeutils.core.AnthropicProvider')
+    def test_anthropic_model_from_environment_variable(self, mock_anthropic_provider):
+        """Test that Anthropic model is read from environment variable"""
+        mock_instance = MagicMock()
+        mock_anthropic_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        custom_model = "claude-3-opus-20240229"
+        os.environ["VIBEUTILS_ANTHROPIC_MODEL"] = custom_model
+        
+        result = vibecount("test", "t", provider="anthropic")  # No model parameter
+        
+        assert result == 3
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", custom_model)
+    
+    @patch('vibeutils.core.OpenAIProvider')
+    def test_model_parameter_overrides_environment_variable(self, mock_openai_provider):
+        """Test that model parameter takes precedence over environment variable"""
+        mock_instance = MagicMock()
+        mock_openai_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        env_model = "gpt-3.5-turbo"
+        param_model = "gpt-4"
+        os.environ["VIBEUTILS_OPENAI_MODEL"] = env_model
+        
+        result = vibecount("test", "t", provider="openai", model=param_model)
+        
+        assert result == 3
+        # Should use parameter model, not environment variable model
+        mock_openai_provider.assert_called_with("test-openai-key", param_model)
+    
+    @patch('vibeutils.core.OpenAIProvider')
+    def test_default_model_when_no_env_var_or_parameter(self, mock_openai_provider):
+        """Test that default model is used when no environment variable or parameter is set"""
+        mock_instance = MagicMock()
+        mock_openai_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        result = vibecount("test", "t", provider="openai")  # No model parameter or env var
+        
+        assert result == 3
+        # Should use default model from constants
+        mock_openai_provider.assert_called_with("test-openai-key", "gpt-4o-mini")
+    
+    @patch('vibeutils.core.AnthropicProvider')
+    def test_anthropic_default_model_when_no_env_var_or_parameter(self, mock_anthropic_provider):
+        """Test that default Anthropic model is used when no environment variable or parameter is set"""
+        mock_instance = MagicMock()
+        mock_anthropic_provider.return_value = mock_instance
+        mock_instance.create_completion.side_effect = ["SAFE", "SAFE", "3", "VALID"]
+        
+        result = vibecount("test", "t", provider="anthropic")  # No model parameter or env var
+        
+        assert result == 3
+        # Should use default model from constants
+        mock_anthropic_provider.assert_called_with("test-anthropic-key", "claude-sonnet-4-20250514")
+
+
+class TestModelParameterLogic:
+    """Test cases for OpenAI model parameter logic"""
+    
+    def setup_method(self):
+        """Set up test environment"""
+        os.environ["OPENAI_API_KEY"] = "test-openai-key"
+    
+    def teardown_method(self):
+        """Clean up test environment"""
+        if "OPENAI_API_KEY" in os.environ:
+            del os.environ["OPENAI_API_KEY"]
+    
+    def test_old_model_parameters(self):
+        """Test that older models use max_tokens parameter"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "gpt-3.5-turbo")
+        params = provider._get_api_params(max_tokens=10, temperature=0.7)
+        
+        assert "max_tokens" in params
+        assert "max_completion_tokens" not in params
+        assert params["temperature"] == 0.7
+        assert params["model"] == "gpt-3.5-turbo"
+    
+    def test_new_model_parameters(self):
+        """Test that newer models use max_completion_tokens parameter"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "gpt-4o")
+        params = provider._get_api_params(max_tokens=10, temperature=0.7)
+        
+        assert "max_completion_tokens" in params
+        assert "max_tokens" not in params
+        assert params["temperature"] == 0.7
+        assert params["model"] == "gpt-4o"
+    
+    def test_o1_model_parameters(self):
+        """Test that o1 models use max_completion_tokens and no temperature"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "o1-preview")
+        params = provider._get_api_params(max_tokens=10, temperature=0.7)
+        
+        assert "max_completion_tokens" in params
+        assert "max_tokens" not in params
+        assert "temperature" not in params  # o1 models don't support temperature
+        assert params["model"] == "o1-preview"
+    
+    def test_legacy_model_temperature_zero(self):
+        """Test that legacy models accept temperature=0"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "gpt-3.5-turbo")
+        params = provider._get_api_params(max_tokens=10, temperature=0)
+        
+        assert params["temperature"] == 0  # Should accept 0
+        assert params["model"] == "gpt-3.5-turbo"
+    
+    def test_newer_model_temperature_zero(self):
+        """Test that newer models like gpt-4o accept temperature=0"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "gpt-4o")
+        params = provider._get_api_params(max_tokens=10, temperature=0)
+        
+        assert params["temperature"] == 0  # Should accept 0
+        assert params["model"] == "gpt-4o"
+    
+    def test_gpt4_turbo_model_parameters(self):
+        """Test that gpt-4-turbo uses max_tokens parameter (legacy model)"""
+        from vibeutils.core import OpenAIProvider
+        
+        provider = OpenAIProvider("fake-key", "gpt-4-turbo")
+        params = provider._get_api_params(max_tokens=10, temperature=0.7)
+        
+        assert "max_tokens" in params
+        assert "max_completion_tokens" not in params
+        assert params["temperature"] == 0.7
+        assert params["model"] == "gpt-4-turbo"
