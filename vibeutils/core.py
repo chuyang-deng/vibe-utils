@@ -554,3 +554,68 @@ Remember: Only return the number or "ERROR", nothing else."""
         if "AI API returned" in str(e) or "Response validation failed" in str(e):
             raise e
         raise Exception(f"AI API call failed: {str(e)}")
+
+
+def vibelength(text: str, provider: Optional[Provider] = None, model: Optional[str] = None) -> int:
+    """
+    Get the length of the input string using AI API with security checks.
+
+    Args:
+        text (str): The input string to measure
+        provider (Optional[Provider]): AI provider to use ("openai" or "anthropic"). 
+                                      If None, uses VIBEUTILS_PROVIDER environment variable, 
+                                      defaulting to "openai" if not set.
+        model (Optional[str]): The model to use for the provider. If None, uses environment 
+                              variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, 
+                              defaulting to built-in constants if not set.
+
+    Returns:
+        int: The length (number of characters) of the input string
+
+    Raises:
+        ValueError: If API key is not set, or input contains prompt injection, or input is not a string
+        Exception: If AI API call fails or response validation fails
+    """
+    # Validate inputs
+    if not isinstance(text, str):
+        raise ValueError("text must be a string")
+
+    # Get AI provider instance
+    provider_instance = _get_provider(provider, model)
+
+    # Security check: Use AI to detect prompt injection in user input
+    _check_prompt_injection(text, provider_instance)
+
+    prompt = f"""Determine the number of characters in the following text.
+Only return the number as your response, nothing else.
+
+Text: "{text}"
+"""
+
+    try:
+        # Make API call for the main task
+        result = provider_instance.create_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE
+        )
+
+        # Security check: Validate the response using AI (expects non-negative integer)
+        _validate_vibecount_response(result, provider_instance)
+
+        # Final validation and conversion
+        try:
+            length_value = int(result)
+            if length_value < 0:
+                raise Exception("AI API returned invalid negative length")
+            return length_value
+        except ValueError:
+            raise Exception(f"AI API returned non-numeric response: {result}")
+
+    except ValueError as e:
+        # Re-raise ValueError (includes our security blocks)
+        raise e
+    except Exception as e:
+        if "AI API returned" in str(e) or "Response validation failed" in str(e):
+            raise e
+        raise Exception(f"AI API call failed: {str(e)}")

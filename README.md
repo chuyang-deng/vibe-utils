@@ -1,10 +1,11 @@
 # vibeutils
 
-A Python utils library that counts letter frequency, compares numbers, and evaluates mathematical expressions using OpenAI and Anthropic APIs.
+A Python utils library that counts letter frequency, gets string length, compares numbers, and evaluates mathematical expressions using OpenAI and Anthropic APIs.
 
 ## Features
 
 - Count frequency of specific letters in text
+- Get the length of a string
 - Compare two numbers using AI
 - Evaluate mathematical expressions safely
 - Support for both OpenAI and Anthropic APIs
@@ -14,20 +15,20 @@ A Python utils library that counts letter frequency, compares numbers, and evalu
 ## Quick Start
 
 ```python
-from vibeutils import vibecount, vibecompare, vibeeval
+from vibeutils import vibecount, vibecompare, vibeeval, vibelength
 
 # Set your preferred provider globally (optional)
 # export VIBEUTILS_PROVIDER=anthropic
 
 # Now all function calls use your preferred provider automatically
 count = vibecount("strawberry", "r")        # Count letter frequency
-comparison = vibecompare(5, 10)             # Compare numbers  
-result = vibeeval("(2 + 3) * 4")            # Evaluate expressions
+length = vibelength("strawberry")            # Get string length
+comparison = vibecompare(5, 10)               # Compare numbers  
+result = vibeeval("(2 + 3) * 4")             # Evaluate expressions
 ```
 
 ## Upcoming
 
-* `vibelength()`
 * `viebtime`
 * ...
 
@@ -199,6 +200,32 @@ result = vibecompare(3.14, 2.71, provider="anthropic", model="claude-3-haiku-202
 print(result)  # 1 (using Claude Haiku model)
 ```
 
+### String Length - vibelength()
+
+```python
+from vibeutils import vibelength
+
+# Get length (uses default provider)
+result = vibelength("strawberry")
+print(result)  # 10
+
+# Using environment variable to set default provider
+# export VIBEUTILS_PROVIDER=anthropic
+result = vibelength("strawberry")  # Now uses Anthropic automatically
+print(result)  # 10
+
+# Override environment variable with explicit provider
+result = vibelength("strawberry", provider="openai")  # Forces OpenAI
+print(result)  # 10
+
+# Using custom models
+result = vibelength("hello world", provider="openai", model="gpt-4")
+print(result)  # 11
+
+result = vibelength("HELLO", provider="anthropic", model="claude-3-haiku-20240307")
+print(result)  # 5
+```
+
 ### Mathematical Expression Evaluation - vibeeval()
 
 ```python
@@ -255,6 +282,11 @@ result = vibeeval("sqrt(16)", provider="anthropic", model="claude-3-sonnet-20240
 - `provider` (str, optional): AI provider to use ("openai" or "anthropic"). If None, uses VIBEUTILS_PROVIDER environment variable, defaulting to "openai" if not set.
 - `model` (str, optional): The model to use for the provider. If None, uses environment variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, defaulting to built-in constants if not set.
 
+#### vibelength(text, provider=None, model=None)
+- `text` (str): The input string to measure the length of
+- `provider` (str, optional): AI provider to use ("openai" or "anthropic"). If None, uses VIBEUTILS_PROVIDER environment variable, defaulting to "openai" if not set.
+- `model` (str, optional): The model to use for the provider. If None, uses environment variables VIBEUTILS_OPENAI_MODEL or VIBEUTILS_ANTHROPIC_MODEL, defaulting to built-in constants if not set.
+
 #### vibeeval(expression, provider=None, model=None)
 - `expression` (str): Mathematical expression containing numbers, operators (+, -, *, /, **), and parentheses
 - `provider` (str, optional): AI provider to use ("openai" or "anthropic"). If None, uses VIBEUTILS_PROVIDER environment variable, defaulting to "openai" if not set.
@@ -263,6 +295,7 @@ result = vibeeval("sqrt(16)", provider="anthropic", model="claude-3-sonnet-20240
 ### Return Values
 
 - **vibecount()**: Returns an integer representing the count of the target letter
+- **vibelength()**: Returns an integer representing the number of characters in the input string
 - **vibecompare()**: Returns an integer:
   - `-1` if the first number is smaller than the second
   - `0` if the numbers are equal
